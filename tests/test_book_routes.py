@@ -1,5 +1,21 @@
 import unittest
+import os
 from unittest.mock import MagicMock, patch
+
+# Instead of configuring AWS credentials, completely bypass Cognito auth by patching
+# the RoleChecker dependency. This prevents any network calls and sidesteps region/env issues.
+from app.services.cognito_service import RoleChecker
+
+# patch RoleChecker.__call__ globally so authentication always succeeds
+role_patcher = patch.object(RoleChecker, "__call__", return_value={})
+role_patcher.start()
+
+# prevent any outbound HTTP call when CognitoService is instantiated (requests.get used in __init__)
+patcher = patch("app.services.cognito_service.requests.get")
+mock_get = patcher.start()
+mock_get.return_value.status_code = 200
+mock_get.return_value.json.return_value = {"keys": []}
+
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 from datetime import date
