@@ -26,20 +26,35 @@ class CognitoService:
 
         # JSON Web Key Set (JWKS) is a collection of public cryptographic keys used to verify JSON Web Tokens
         self.jwks_url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
-        self.jwks_keys = self._get_cognito_jwks()
+        self._jwks_keys = None  # Lazy loaded
         self.bearer = bearer_scheme
 
-        # Initialize Boto3 Cognito client
-        self.client = boto3.client("cognito-idp", region_name=self.region)
+        # Initialize Boto3 Cognito client only if region is set
+        self.client = None
+        if self.region:
+            self.client = boto3.client("cognito-idp", region_name=self.region)
+
+    @property
+    def jwks_keys(self):
+        if self._jwks_keys is None:
+            self._jwks_keys = self._get_cognito_jwks()
+        return self._jwks_keys
 
     def _get_cognito_jwks(self):
         """
         Retrieve JWKS (JSON Web Key Set) for token validation from AWS Cognito.
         """
-        response = requests.get(self.jwks_url)
-        if response.status_code != 200:
-            raise ServiceException(status_code=500, detail="Unable to fetch JWKS for token validation.")
-        return response.json()["keys"]
+        if not self.region or not self.user_pool_id:
+            # Return empty keys if not configured
+            return []
+        try:
+            response = requests.get(self.jwks_url, timeout=5)
+            if response.status_code != 200:
+                raise ServiceException(status_code=500, detail="Unable to fetch JWKS for token validation.")
+            return response.json()["keys"]
+        except requests.RequestException:
+            # If we can't fetch JWKS, return empty list to avoid startup failures
+            return []
 
     def validate_token(self, auth: HTTPAuthorizationCredentials):
         """

@@ -1,0 +1,280 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
+import { Separator } from './ui/separator';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import { Star, ArrowLeft, Loader2 } from 'lucide-react';
+import { apiService, Book, Review, ReviewCreate } from '../services/api';
+import { toast } from 'sonner';
+
+export function BookDetail() {
+  const { bookId } = useParams();
+  const navigate = useNavigate();
+  const [book, setBook] = useState<Book | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [myRating, setMyRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewMood, setReviewMood] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    const fetchBookData = async () => {
+      if (!bookId) return;
+
+      try {
+        setLoading(true);
+        const [bookData, reviewsData] = await Promise.all([
+          apiService.getBook(bookId),
+          apiService.getReviewsForBook(bookId)
+        ]);
+        setBook(bookData);
+        setReviews(reviewsData);
+        setError(null);
+      } catch (err) {
+        setError('Failed to load book data');
+        console.error('Error fetching book data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookData();
+  }, [bookId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading book...</span>
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error || 'Book not found'}</p>
+          <Button onClick={() => navigate('/bookshelf')}>Back to Bookshelf</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSubmitReview = async () => {
+    if (!bookId || myRating === 0) {
+      return;
+    }
+
+    const payload: ReviewCreate = {
+      rating: myRating,
+      comment: reviewText.trim() || undefined,
+      mood: reviewMood.trim() || undefined,
+    };
+
+    try {
+      setSubmittingReview(true);
+      const createdReview = await apiService.addReview(bookId, payload);
+      setReviews((prevReviews) => [createdReview, ...prevReviews]);
+      setMyRating(0);
+      setReviewText('');
+      setReviewMood('');
+      toast.success('Review submitted successfully');
+    } catch (submitErr) {
+      console.error('Error submitting review:', submitErr);
+      toast.error('Failed to submit review. Please try again.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Button variant="ghost" onClick={() => navigate('/bookshelf')} className="mb-4">
+        <ArrowLeft className="size-4 mr-2" />
+        Back to Bookshelf
+      </Button>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Book Cover and Info */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardContent className="p-6">
+              <img
+                src={book.cover_image_url || 'https://via.placeholder.com/400x600?text=No+Cover'}
+                alt={book.title}
+                className="w-full rounded-lg shadow-lg mb-4"
+              />
+              <h1 className="text-2xl font-bold mb-2">{book.title}</h1>
+              {book.subtitle && (
+                <p className="text-gray-600 mb-4">{book.subtitle}</p>
+              )}
+
+              {book.abstract && (
+                <p className="text-sm text-gray-700 mb-4">{book.abstract}</p>
+              )}
+
+              <Separator className="my-4" />
+
+              <div className="space-y-2">
+                {book.page_count && (
+                  <p className="text-sm text-gray-600">
+                    <strong>Pages:</strong> {book.page_count}
+                  </p>
+                )}
+                {book.published_date && (
+                  <p className="text-sm text-gray-600">
+                    <strong>Published:</strong> {new Date(book.published_date).getFullYear()}
+                  </p>
+                )}
+                {book.CommunitySynopsis && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold mb-2">Community Synopsis</h3>
+                    <p className="text-sm text-gray-700">{book.CommunitySynopsis}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content */}
+        <div className="md:col-span-2 space-y-6">
+
+          {/* About the Book */}
+          <Card>
+            <CardHeader>
+              <CardTitle>About this Book</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700">{book.abstract}</p>
+            </CardContent>
+          </Card>
+
+          {/* Write Review */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Write a Review</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Rating */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Your Rating</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setMyRating(star)}
+                      className="focus:outline-none"
+                      disabled={submittingReview}
+                    >
+                      <Star
+                        className={`size-8 ${
+                          star <= myRating
+                            ? 'text-yellow-500 fill-current'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mood */}
+              <div>
+                <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Happy, Thought-provoking, Inspiring..."
+                  value={reviewMood}
+                  onChange={(e) => setReviewMood(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={submittingReview}
+                />
+              </div>
+
+              {/* Review Text */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Your Review (Optional)</label>
+                <Textarea
+                  placeholder="Share your thoughts about this book..."
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  rows={4}
+                  disabled={submittingReview}
+                />
+              </div>
+
+              <Button
+                onClick={handleSubmitReview}
+                className="w-full"
+                disabled={submittingReview || myRating === 0}
+              >
+                {submittingReview ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Review'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Existing Reviews */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Reviews ({reviews.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {reviews.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No reviews yet. Be the first to review this book!</p>
+              ) : (
+                reviews.map((review) => (
+                  <div key={review.review_id} className="border-b pb-4 last:border-b-0">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center">
+                        <Avatar className="size-10 mr-3">
+                          <AvatarFallback>U{review.user_id.slice(-1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`size-4 ${
+                                  i < review.rating
+                                    ? 'text-yellow-500 fill-current'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-2 text-sm text-gray-600">
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {review.mood && (
+                            <p className="text-sm text-gray-500 mt-1">Feeling: {review.mood}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {(review.comment || review.body) && (
+                      <p className="text-gray-700 mt-2">{review.comment || review.body}</p>
+                    )}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}

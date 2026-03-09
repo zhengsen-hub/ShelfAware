@@ -2,6 +2,7 @@
 import logging
 import os
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.database import engine, Base
 
@@ -32,6 +33,15 @@ app = FastAPI(
     title="ShelfAware API",
     description="An API for managing books and integrating with Ollama and ChromaDB",
     version="0.1.0",
+)
+
+# Configure CORS to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include routes
