@@ -32,14 +32,21 @@ ShelfAware/
 │   ├── services/               # Business logic
 │   │   ├── book_service.py
 │   │   ├── review_service.py
-│   │   ├── synopsis_sync_service.py      # NEW: Synopsis synchronization logic
-│   │   └── synopsis_scheduler.py         # NEW: Cron job scheduler
+│   │   ├── synopsis_sync_service.py      # Synopsis synchronization logic
+│   │   └── (scheduler removed – sync now manual via `/admin/sync-synopses`)
 │   └── dependencies/           # Dependency injection & utilities
 │       ├── auth.py
 │       ├── db.py
 │       └── services.py
 ├── migrations/                 # Alembic database migrations
 ├── requirements.txt            # Python dependencies
+├── run_tests.py               # Main test runner (unit & integration)
+├── tests/                      # Unit and integration tests
+│   ├── test_book_crud.py
+│   ├── test_book_routes.py
+│   ├── test_recommendation_engine.py
+│   ├── run_book_tests.py        # convenience script for book CRUD tests
+│   └── README.md                # testing documentation
 ├── .env.example               # Environment variables template
 └── README.md                  # This file
 ```
