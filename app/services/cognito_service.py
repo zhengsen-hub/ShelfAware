@@ -28,11 +28,17 @@ class CognitoService:
 
         # JSON Web Key Set (JWKS) is a collection of public cryptographic keys used to verify JSON Web Tokens
         self.jwks_url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
-        self.jwks_keys = self._get_cognito_jwks()
+        self._jwks_keys = None
         self.bearer = bearer_scheme
 
         # Initialize Boto3 Cognito client
         self.client = boto3.client("cognito-idp", region_name=self.region)
+
+    @property
+    def jwks_keys(self):
+        if self._jwks_keys is None:
+            self._jwks_keys = self._get_cognito_jwks()
+        return self._jwks_keys
 
     def _get_cognito_jwks(self):
         """
