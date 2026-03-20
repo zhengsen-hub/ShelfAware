@@ -38,7 +38,7 @@ def client():
         yield c
     app.dependency_overrides.clear()
 
-# --- Integration Tests for /books/search/similarities Endpoint ---
+# --- Integration Tests for /books/search/vector/search Endpoint ---
 
 def test_search_similarities_endpoint_success(client, mock_chroma_service):
     # Arrange
@@ -48,7 +48,7 @@ def test_search_similarities_endpoint_success(client, mock_chroma_service):
     ]
     
     # Act
-    response = client.get("/books/search/similarities?query=test+book")
+    response = client.get("/books/search/vector/search?query=test+book")
     
     # Assert
     assert response.status_code == 200
@@ -63,7 +63,7 @@ def test_search_similarities_endpoint_no_results(client, mock_chroma_service):
     mock_instance.search_books.return_value = []
     
     # Act
-    response = client.get("/books/search/similarities?query=nonexistent")
+    response = client.get("/books/search/vector/search?query=nonexistent")
     
     # Assert
     assert response.status_code == 404
@@ -77,7 +77,7 @@ def test_search_similarities_endpoint_with_parameters(client, mock_chroma_servic
     ]
     
     # Act
-    response = client.get("/books/search/similarities?query=test&distance_threshold=0.8&llm_provider=OLLAMA")
+    response = client.get("/books/search/vector/search?query=test&distance_threshold=0.8&llm_provider=OLLAMA")
     
     # Assert
     assert response.status_code == 200
@@ -92,7 +92,7 @@ def test_search_similarities_endpoint_unauthorized(client):
     app.dependency_overrides[get_current_user] = mock_unauthorized
     
     # Act
-    response = client.get("/books/search/similarities?query=test")
+    response = client.get("/books/search/vector/search?query=test")
     
     # Assert
     assert response.status_code == 401
@@ -102,7 +102,7 @@ def test_search_similarities_endpoint_service_initialization_failure(client):
     # Arrange: Mock ChromaService to fail
     with patch('app.routes.chroma.ChromaService', side_effect=Exception("Init failed")):
         # Act
-        response = client.get("/books/search/similarities?query=test")
+        response = client.get("/books/search/vector/search?query=test")
         
         # Assert
         assert response.status_code == 500
