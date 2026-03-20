@@ -258,14 +258,21 @@ def test_auth_reset_password_invalid_token(client, mocker):
     response = client.post("/auth/reset-password", json=payload)
     assert response.status_code == 400
 
-# New password fails Cognito's password policy
+# Schema rejects weak password before reaching the route → 422
+def test_auth_reset_password_fails_schema_validation(client, mocker):
+    payload = {"email": "test@test.com", "token": "123456", "new_password": "weak"}
+    response = client.post("/auth/reset-password", json=payload)
+    assert response.status_code == 422
+
+# Schema passes but Cognito rejects the password policy → 400
 def test_auth_reset_password_weak_new_password(client, mocker):
     from app.exceptions import ServiceException
     mocker.patch(
         "app.routes.auth.cognito_service.confirm_forgot_password",
         side_effect=ServiceException(status_code=400, detail="Password does not meet requirements")
     )
-    payload = {"email": "test@test.com", "token": "123456", "new_password": "weak"}
+    # Passes schema validation but Cognito has stricter rules
+    payload = {"email": "test@test.com", "token": "123456", "new_password": "Passes123!"}
     response = client.post("/auth/reset-password", json=payload)
     assert response.status_code == 400
 
