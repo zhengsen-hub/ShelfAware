@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Literal
 
 from app.dependencies.db import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_db_user
 
 from app.services.bookshelf_service import BookshelfService
 from app.schemas.bookshelf import (
@@ -51,7 +51,7 @@ def _extract_user_id(current_user) -> str:
 def add_book(
     payload: BookshelfCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)
@@ -78,7 +78,7 @@ def list_my_shelf(
     ),
     order: Literal["asc", "desc"] = Query(default="desc", description="Sort order"),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)
@@ -91,7 +91,7 @@ def list_my_shelf(
 def remove_book(
     book_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)
@@ -112,7 +112,7 @@ def update_status(
     book_id: str,
     payload: BookshelfStatusUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)
@@ -130,7 +130,7 @@ def update_status(
 @router.get("/timeline", response_model=list[BookshelfRead])
 def timeline(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)
@@ -141,7 +141,7 @@ def timeline(
 @router.get("/stats")
 def stats(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_db_user),
 ):
     service = get_bookshelf_service(db)
     user_id = _extract_user_id(current_user)

@@ -6,10 +6,11 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
+import { apiService, ApiError } from '../services/api';
 import logoImage from '../../assets/08044afe8eb8f9700793bdbb3ce5779e85ca56f7.png';
 
 interface LoginProps {
-  onLogin: (isAdmin: boolean) => void;
+  onLogin: (isAdmin: boolean, auth?: { accessToken: string; email: string }) => void;
 }
 
 export function Login({ onLogin }: LoginProps) {
@@ -17,11 +18,69 @@ export function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [showConfirmAccount, setShowConfirmAccount] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [isConfirmingAccount, setIsConfirmingAccount] = useState(false);
 
-  const handleLogin = (e: React.FormEvent, isAdmin: boolean = false) => {
+  const handleLogin = async (e: React.FormEvent, isAdmin: boolean = false) => {
     e.preventDefault();
-    onLogin(isAdmin);
-    navigate(isAdmin ? '/admin' : '/bookshelf');
+    if (isAdmin) {
+      onLogin(true);
+      navigate('/admin');
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password.trim()) {
+      toast.error('Please enter email and password');
+      return;
+    }
+
+    try {
+      setIsSigningIn(true);
+      const result = await apiService.login(normalizedEmail, password);
+      const accessToken = result.tokens?.access_token;
+      if (!accessToken) {
+        throw new Error('Login response did not include an access token');
+      }
+
+      onLogin(false, { accessToken, email: result.user.email });
+      navigate('/inspiration');
+    } catch (error) {
+      console.error('Login failed:', error);
+      if (error instanceof ApiError && error.status === 403 && error.message.toLowerCase().includes('not confirmed')) {
+        toast.error('Account not confirmed. Check your email for the confirmation code, then confirm before signing in.');
+        setShowConfirmAccount(true);
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to sign in');
+      }
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleConfirmAccount = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const code = confirmationCode.trim();
+
+    if (!normalizedEmail || !code) {
+      toast.error('Enter email and confirmation code');
+      return;
+    }
+
+    try {
+      setIsConfirmingAccount(true);
+      const result = await apiService.confirmAccount(normalizedEmail, code);
+      toast.success(result.message || 'Account confirmed. You can now sign in.');
+      setShowConfirmAccount(false);
+      setConfirmationCode('');
+    } catch (error) {
+      console.error('Account confirmation failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to confirm account');
+    } finally {
+      setIsConfirmingAccount(false);
+    }
   };
 
   const handleCreateAccount = async () => {
@@ -111,8 +170,9 @@ export function Login({ onLogin }: LoginProps) {
                   <Button
                     type="submit"
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={isSigningIn}
                   >
-                    Sign In
+                    {isSigningIn ? 'Signing In...' : 'Sign In'}
                   </Button>
                   <Button
                     type="button"
@@ -126,6 +186,28 @@ export function Login({ onLogin }: LoginProps) {
                   <p className="text-sm text-center text-gray-600">
                     Demo: Click to login as user
                   </p>
+
+                  {showConfirmAccount && (
+                    <div className="mt-4 border rounded-lg p-3 bg-amber-50 space-y-3">
+                      <p className="text-sm font-medium text-amber-900">
+                        Account confirmation required
+                      </p>
+                      <Input
+                        value={confirmationCode}
+                        onChange={(e) => setConfirmationCode(e.target.value)}
+                        placeholder="Enter confirmation code"
+                      />
+                      <Button
+                        type="button"
+                        className="w-full"
+                        variant="outline"
+                        onClick={handleConfirmAccount}
+                        disabled={isConfirmingAccount}
+                      >
+                        {isConfirmingAccount ? 'Confirming...' : 'Confirm Account'}
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>

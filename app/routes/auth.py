@@ -74,7 +74,7 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
         tokens = cognito_service.authenticate_user(username=email, password=payload.password)
 
     except ServiceException as e:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     
     user = db.query(User).filter(User.email == email).first()
     if not user:

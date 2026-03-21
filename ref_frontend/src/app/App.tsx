@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { Toaster } from './components/ui/sonner';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
+import { Inspiration } from './components/Inspiration';
 import { Bookshelf } from './components/Bookshelf';
 import { BookDetail } from './components/BookDetail';
 import { Profile } from './components/Profile';
@@ -12,15 +13,21 @@ import { AdminPanel } from './components/AdminPanel';
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const handleLogin = (admin: boolean) => {
+  const handleLogin = (admin: boolean, auth?: { accessToken: string; email: string }) => {
     setIsAuthenticated(true);
     setIsAdmin(admin);
+    setAccessToken(auth?.accessToken ?? null);
+    setUserEmail(auth?.email ?? null);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setIsAdmin(false);
+    setAccessToken(null);
+    setUserEmail(null);
   };
 
   if (!isAuthenticated) {
@@ -36,13 +43,14 @@ export default function App() {
     <BrowserRouter>
       <Layout isAdmin={isAdmin} onLogout={handleLogout}>
         <Routes>
-          <Route path="/" element={<Navigate to="/bookshelf" replace />} />
-          <Route path="/bookshelf" element={<Bookshelf />} />
+          <Route path="/" element={<Navigate to="/inspiration" replace />} />
+          <Route path="/inspiration" element={<Inspiration accessToken={accessToken} />} />
+          <Route path="/bookshelf" element={<Bookshelf accessToken={accessToken} />} />
           <Route path="/book/:bookId" element={<BookDetail />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile" element={<Profile accessToken={accessToken} userEmail={userEmail} />} />
           <Route path="/chatbot" element={<Chatbot />} />
-          <Route path="/admin" element={isAdmin ? <AdminPanel /> : <Navigate to="/bookshelf" replace />} />
-          <Route path="*" element={<Navigate to="/bookshelf" replace />} />
+          <Route path="/admin" element={isAdmin ? <AdminPanel /> : <Navigate to="/inspiration" replace />} />
+          <Route path="*" element={<Navigate to="/inspiration" replace />} />
         </Routes>
       </Layout>
       <Toaster />

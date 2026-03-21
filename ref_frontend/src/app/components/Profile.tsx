@@ -1,14 +1,113 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Button } from './ui/button';
 import { Star, BookOpen, Award, TrendingUp, Calendar, Heart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { mockUser, mockReadingProgress, mockReviews, mockBooks, mockMoodHistory } from '../data/mockData';
+import { apiService } from '../services/api';
+import { toast } from 'sonner';
 
-export function Profile() {
+interface ProfileProps {
+  accessToken: string | null;
+  userEmail: string | null;
+}
+
+export function Profile({ accessToken, userEmail }: ProfileProps) {
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    display_name: '',
+    profile_photo_url: '',
+    bio: '',
+    location: '',
+    favorite_genres_json: '',
+  });
+
+  useEffect(() => {
+    const loadMyProfile = async () => {
+      if (!accessToken) {
+        setIsProfileLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await apiService.getMyProfile(accessToken);
+        setProfileForm({
+          display_name: profile.display_name || '',
+          profile_photo_url: profile.profile_photo_url || '',
+          bio: profile.bio || '',
+          location: profile.location || '',
+          favorite_genres_json: profile.favorite_genres_json || '',
+        });
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+        toast.error('Could not load user profile');
+      } finally {
+        setIsProfileLoading(false);
+      }
+    };
+
+    loadMyProfile();
+  }, [accessToken]);
+
+  const userInitials = useMemo(() => {
+    const source = profileForm.display_name || userEmail || mockUser.name;
+    return source
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'U';
+  }, [profileForm.display_name, userEmail]);
+
+  const handleProfileFieldChange = (field: keyof typeof profileForm, value: string) => {
+    setProfileForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!accessToken) {
+      toast.error('Please sign in to update your profile');
+      return;
+    }
+
+    if (!profileForm.display_name.trim()) {
+      toast.error('Display name is required');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      const updated = await apiService.updateMyProfile(accessToken, {
+        display_name: profileForm.display_name.trim(),
+        profile_photo_url: profileForm.profile_photo_url.trim(),
+        bio: profileForm.bio.trim(),
+        location: profileForm.location.trim(),
+        favorite_genres_json: profileForm.favorite_genres_json.trim(),
+      });
+
+      setProfileForm({
+        display_name: updated.display_name || '',
+        profile_photo_url: updated.profile_photo_url || '',
+        bio: updated.bio || '',
+        location: updated.location || '',
+        favorite_genres_json: updated.favorite_genres_json || '',
+      });
+
+      toast.success('Profile updated');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const totalBooks = mockReadingProgress.length;
   const completedBooks = mockReadingProgress.filter((p) => p.status === 'completed').length;
   const currentlyReading = mockReadingProgress.filter((p) => p.status === 'reading').length;
@@ -46,15 +145,23 @@ export function Profile() {
       {/* User Info Card */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-start space-x-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:space-x-6">
             <Avatar className="size-24">
-              <AvatarFallback className="text-2xl">
-                {mockUser.name.split(' ').map((n) => n[0]).join('')}
-              </AvatarFallback>
+              {profileForm.profile_photo_url ? (
+                <img
+                  src={profileForm.profile_photo_url}
+                  alt={profileForm.display_name || 'Profile photo'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <AvatarFallback className="text-2xl">{userInitials}</AvatarFallback>
+              )}
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-1">{mockUser.name}</h2>
-              <p className="text-gray-600 mb-3">{mockUser.email}</p>
+              <h2 className="text-2xl font-bold mb-1">
+                {isProfileLoading ? 'Loading profile...' : profileForm.display_name || 'Set your display name'}
+              </h2>
+              <p className="text-gray-600 mb-3">{userEmail || mockUser.email}</p>
               <div className="flex items-center space-x-6">
                 <div className="flex items-center">
                   <Star className="size-5 text-yellow-500 mr-2 fill-current" />
@@ -71,6 +178,55 @@ export function Profile() {
                   <span className="font-semibold">{totalBooks}</span>
                   <span className="text-sm text-gray-600 ml-1">Books</span>
                 </div>
+              </div>
+
+              <div className="mt-5 grid md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Display Name</label>
+                  <Input
+                    value={profileForm.display_name}
+                    placeholder="Enter display name"
+                    onChange={(e) => handleProfileFieldChange('display_name', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700">Location</label>
+                  <Input
+                    value={profileForm.location}
+                    placeholder="Enter location"
+                    onChange={(e) => handleProfileFieldChange('location', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Profile Photo URL</label>
+                  <Input
+                    value={profileForm.profile_photo_url}
+                    placeholder="https://..."
+                    onChange={(e) => handleProfileFieldChange('profile_photo_url', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Bio</label>
+                  <Textarea
+                    value={profileForm.bio}
+                    placeholder="Tell others what you like to read"
+                    onChange={(e) => handleProfileFieldChange('bio', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Favorite Genres (JSON)</label>
+                  <Input
+                    value={profileForm.favorite_genres_json}
+                    placeholder='["Fantasy", "Mystery"]'
+                    onChange={(e) => handleProfileFieldChange('favorite_genres_json', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <Button onClick={handleSaveProfile} disabled={isSavingProfile || isProfileLoading}>
+                  {isSavingProfile ? 'Saving...' : 'Save Profile Details'}
+                </Button>
               </div>
             </div>
           </div>

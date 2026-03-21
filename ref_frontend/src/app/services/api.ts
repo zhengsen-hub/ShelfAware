@@ -1,6 +1,16 @@
 // API service for connecting to the ShelfAware backend
 const API_BASE_URL = 'http://localhost:8000';
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = 'ApiError';
+  }
+}
+
 export interface Book {
   book_id: string;
   title: string;
@@ -49,6 +59,56 @@ export interface ChatResponse {
   follow_up_questions: string[];
 }
 
+export interface LoginResponse {
+  message: string;
+  user: {
+    user_id: string;
+    cognito_sub: string;
+    email: string;
+    status: string;
+    created_at: string;
+  };
+  tokens: {
+    id_token?: string;
+    access_token?: string;
+    refresh_token?: string;
+  };
+}
+
+export interface UserProfile {
+  user_id: string;
+  display_name: string;
+  profile_photo_url?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  favorite_genres_json?: string | null;
+}
+
+export interface UserProfileUpdate {
+  display_name?: string;
+  profile_photo_url?: string;
+  bio?: string;
+  location?: string;
+  favorite_genres_json?: string;
+}
+
+export interface ConfirmAccountResponse {
+  message: string;
+}
+
+export type ShelfStatus = 'want_to_read' | 'currently_reading' | 'read';
+
+export interface BookshelfItem {
+  user_id: string;
+  book_id: string;
+  shelf_status: ShelfStatus;
+  date_added: string;
+  date_started?: string | null;
+  date_finished?: string | null;
+  updated_at: string;
+  synopsis?: string | null;
+}
+
 class ApiService {
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -63,10 +123,25 @@ class ApiService {
     const response = await fetch(url, config);
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+      try {
+        const body = await response.json();
+        if (typeof body?.detail === 'string' && body.detail.trim()) {
+          errorMessage = body.detail;
+        }
+      } catch {
+        // Keep fallback message when error body is not JSON.
+      }
+
+      throw new ApiError(response.status, errorMessage);
     }
 
-    return response.json();
+    if (response.status === 204) {
+      return undefined;
+    }
+
+    const text = await response.text();
+    return text ? JSON.parse(text) : undefined;
   }
 
   // Books API
@@ -95,6 +170,82 @@ class ApiService {
     return this.request('/api/chatbot/chat', {
       method: 'POST',
       body: JSON.stringify(request),
+    });
+  }
+
+  // Auth API
+  async login(email: string, password: string): Promise<LoginResponse> {
+    return this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async confirmAccount(email: string, confirmationCode: string): Promise<ConfirmAccountResponse> {
+    return this.request('/auth/confirm', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        confirmation_code: confirmationCode,
+      }),
+    });
+  }
+
+  // User profile API
+  async getMyProfile(accessToken: string): Promise<UserProfile> {
+    return this.request('/user-profile/me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  }
+
+  async updateMyProfile(accessToken: string, payload: UserProfileUpdate): Promise<UserProfile> {
+    return this.request('/user-profile/me', {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Bookshelf API
+  async getMyBookshelf(accessToken: string, status?: ShelfStatus): Promise<BookshelfItem[]> {
+    const query = status ? `?status=${status}` : '';
+    return this.request(`/bookshelf/${query}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  }
+
+  async addToBookshelf(accessToken: string, bookId: string): Promise<BookshelfItem> {
+    return this.request('/bookshelf/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ book_id: bookId }),
+    });
+  }
+
+  async updateBookshelfStatus(accessToken: string, bookId: string, shelfStatus: ShelfStatus): Promise<BookshelfItem> {
+    return this.request(`/bookshelf/${bookId}/status`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ shelf_status: shelfStatus }),
+    });
+  }
+
+  async removeFromBookshelf(accessToken: string, bookId: string): Promise<void> {
+    await this.request(`/bookshelf/${bookId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
   }
 }

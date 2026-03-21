@@ -18,9 +18,10 @@ export function Layout({ children, isAdmin, onLogout }: LayoutProps) {
   const navItems = isAdmin
     ? [
         { path: '/admin', icon: Shield, label: 'Admin Panel' },
-        { path: '/bookshelf', icon: Library, label: 'Bookshelf' },
+        { path: '/inspiration', icon: Library, label: 'Inspiration' },
       ]
     : [
+        { path: '/inspiration', icon: Library, label: 'Inspiration' },
         { path: '/bookshelf', icon: Library, label: 'Bookshelf' },
         { path: '/chatbot', icon: MessageSquare, label: 'Chatbot' },
         { path: '/profile', icon: User, label: 'Profile' },
@@ -31,7 +32,7 @@ export function Layout({ children, isAdmin, onLogout }: LayoutProps) {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link to="/bookshelf" className="flex items-center">
+            <Link to="/inspiration" className="flex items-center">
               <img src={logoImage} alt="Shelf Aware" className="h-12" />
             </Link>
 

@@ -60,7 +60,7 @@ export function BookDetail() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error || 'Book not found'}</p>
-          <Button onClick={() => navigate('/bookshelf')}>Back to Bookshelf</Button>
+          <Button onClick={() => navigate('/inspiration')}>Back to Inspiration</Button>
         </div>
       </div>
     );
@@ -95,9 +95,9 @@ export function BookDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate('/bookshelf')} className="mb-4">
+      <Button variant="ghost" onClick={() => navigate('/inspiration')} className="mb-4">
         <ArrowLeft className="size-4 mr-2" />
-        Back to Bookshelf
+        Back to Inspiration
       </Button>
 
       <div className="grid md:grid-cols-3 gap-6">
