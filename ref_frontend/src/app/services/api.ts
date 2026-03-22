@@ -89,10 +89,10 @@ export interface UserProfile {
 
 export interface UserProfileUpdate {
   display_name?: string;
-  profile_photo_url?: string;
-  bio?: string;
-  location?: string;
-  favorite_genres_json?: string;
+  profile_photo_url?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  favorite_genres_json?: string | null;
 }
 
 export interface ConfirmAccountResponse {

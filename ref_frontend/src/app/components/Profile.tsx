@@ -85,10 +85,10 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
       setIsSavingProfile(true);
       const updated = await apiService.updateMyProfile(accessToken, {
         display_name: profileForm.display_name.trim(),
-        profile_photo_url: profileForm.profile_photo_url.trim(),
-        bio: profileForm.bio.trim(),
-        location: profileForm.location.trim(),
-        favorite_genres_json: profileForm.favorite_genres_json.trim(),
+        profile_photo_url: profileForm.profile_photo_url?.trim() || null,
+        bio: profileForm.bio?.trim() || null,
+        location: profileForm.location?.trim() || null,
+        favorite_genres_json: profileForm.favorite_genres_json?.trim() || null,
       });
 
       setProfileForm({
