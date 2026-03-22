@@ -182,7 +182,8 @@ class ApiService {
       },
     };
 
-    const response = await fetch(url, config);
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    const response = await fetch(`${API_BASE_URL}/api/books`, config);
 
     if (!response.ok) {
       let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
