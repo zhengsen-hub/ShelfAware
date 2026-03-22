@@ -168,11 +168,13 @@ class TestAddReview:
             review_data=review_data
         )
         
-        # ASSERT: Verify mood entry was added
+        # ASSERT: Verify review is added with book-level mood mapping
         calls = [call[0][0] for call in mock_db.add.call_args_list]
-        from app.models.mood import Mood
-        mood_added = any(isinstance(call, Mood) for call in calls)
-        assert mood_added
+        from app.models.review import Review
+        added_review = next((call for call in calls if isinstance(call, Review)), None)
+        assert added_review is not None
+        assert getattr(added_review, "book_mood", None) == "happy"
+        assert getattr(added_review, "mood", None) == "happy"
 
 
 class TestUpdateReview:

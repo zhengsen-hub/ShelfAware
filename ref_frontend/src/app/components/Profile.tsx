@@ -21,7 +21,15 @@ interface ProfileProps {
 export function Profile({ accessToken, userEmail }: ProfileProps) {
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
+    display_name: '',
+    profile_photo_url: '',
+    bio: '',
+    location: '',
+    favorite_genres_json: '',
+  });
+  const [profileViewSnapshot, setProfileViewSnapshot] = useState({
     display_name: '',
     profile_photo_url: '',
     bio: '',
@@ -39,6 +47,13 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
       try {
         const profile = await apiService.getMyProfile(accessToken);
         setProfileForm({
+          display_name: profile.display_name || '',
+          profile_photo_url: profile.profile_photo_url || '',
+          bio: profile.bio || '',
+          location: profile.location || '',
+          favorite_genres_json: profile.favorite_genres_json || '',
+        });
+        setProfileViewSnapshot({
           display_name: profile.display_name || '',
           profile_photo_url: profile.profile_photo_url || '',
           bio: profile.bio || '',
@@ -70,6 +85,16 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
     setProfileForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleStartEditingProfile = () => {
+    setProfileForm(profileViewSnapshot);
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEditingProfile = () => {
+    setProfileForm(profileViewSnapshot);
+    setIsEditingProfile(false);
+  };
+
   const handleSaveProfile = async () => {
     if (!accessToken) {
       toast.error('Please sign in to update your profile');
@@ -98,6 +123,14 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
         location: updated.location || '',
         favorite_genres_json: updated.favorite_genres_json || '',
       });
+      setProfileViewSnapshot({
+        display_name: updated.display_name || '',
+        profile_photo_url: updated.profile_photo_url || '',
+        bio: updated.bio || '',
+        location: updated.location || '',
+        favorite_genres_json: updated.favorite_genres_json || '',
+      });
+      setIsEditingProfile(false);
 
       toast.success('Profile updated');
     } catch (error) {
@@ -180,54 +213,84 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
                 </div>
               </div>
 
-              <div className="mt-5 grid md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Display Name</label>
-                  <Input
-                    value={profileForm.display_name}
-                    placeholder="Enter display name"
-                    onChange={(e) => handleProfileFieldChange('display_name', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Location</label>
-                  <Input
-                    value={profileForm.location}
-                    placeholder="Enter location"
-                    onChange={(e) => handleProfileFieldChange('location', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Profile Photo URL</label>
-                  <Input
-                    value={profileForm.profile_photo_url}
-                    placeholder="https://..."
-                    onChange={(e) => handleProfileFieldChange('profile_photo_url', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Bio</label>
-                  <Textarea
-                    value={profileForm.bio}
-                    placeholder="Tell others what you like to read"
-                    onChange={(e) => handleProfileFieldChange('bio', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Favorite Genres (JSON)</label>
-                  <Input
-                    value={profileForm.favorite_genres_json}
-                    placeholder='["Fantasy", "Mystery"]'
-                    onChange={(e) => handleProfileFieldChange('favorite_genres_json', e.target.value)}
-                  />
-                </div>
-              </div>
+              {isEditingProfile ? (
+                <>
+                  <div className="mt-5 grid md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700">Display Name</label>
+                      <Input
+                        value={profileForm.display_name}
+                        placeholder="Enter display name"
+                        onChange={(e) => handleProfileFieldChange('display_name', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700">Location</label>
+                      <Input
+                        value={profileForm.location}
+                        placeholder="Enter location"
+                        onChange={(e) => handleProfileFieldChange('location', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">Profile Photo URL</label>
+                      <Input
+                        value={profileForm.profile_photo_url}
+                        placeholder="https://..."
+                        onChange={(e) => handleProfileFieldChange('profile_photo_url', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">Bio</label>
+                      <Textarea
+                        value={profileForm.bio}
+                        placeholder="Tell others what you like to read"
+                        onChange={(e) => handleProfileFieldChange('bio', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">Favorite Genres</label>
+                      <Input
+                        value={profileForm.favorite_genres_json}
+                        placeholder='["Fantasy", "Mystery"]'
+                        onChange={(e) => handleProfileFieldChange('favorite_genres_json', e.target.value)}
+                      />
+                    </div>
+                  </div>
 
-              <div className="mt-4">
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile || isProfileLoading}>
-                  {isSavingProfile ? 'Saving...' : 'Save Profile Details'}
-                </Button>
-              </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button onClick={handleSaveProfile} disabled={isSavingProfile || isProfileLoading}>
+                      {isSavingProfile ? 'Saving...' : 'Save Profile Details'}
+                    </Button>
+                    <Button variant="secondary" onClick={handleCancelEditingProfile} disabled={isSavingProfile}>
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-5 grid md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-500">Location</p>
+                      <p className="font-medium text-gray-900">{profileForm.location || '-'}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-gray-500">Bio</p>
+                      <p className="font-medium text-gray-900 whitespace-pre-wrap">{profileForm.bio || '-'}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-gray-500">Favorite Genres</p>
+                      <p className="font-medium text-gray-900 break-all">{profileForm.favorite_genres_json || '-'}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <Button onClick={handleStartEditingProfile} disabled={isProfileLoading}>
+                      Update Profile
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
