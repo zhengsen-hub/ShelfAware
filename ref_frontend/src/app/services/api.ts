@@ -112,6 +112,11 @@ export interface BookshelfItem {
   synopsis?: string | null;
 }
 
+export interface ReadingCheckIn {
+  progress_percent: number;
+  mood?: string;
+}
+
 export interface BookshelfStats {
   read_this_month: number;
   read_this_year: number;
@@ -169,9 +174,12 @@ class ApiService {
     return this.request(`/reviews/book/${bookId}`);
   }
 
-  async addReview(bookId: string, review: ReviewCreate): Promise<Review> {
+  async addReview(accessToken: string, bookId: string, review: ReviewCreate): Promise<Review> {
     return this.request(`/reviews/books/${bookId}`, {
       method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       body: JSON.stringify(review),
     });
   }
@@ -257,6 +265,16 @@ class ApiService {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+    });
+  }
+
+  async updateBookshelfProgress(accessToken: string, bookId: string, payload: ReadingCheckIn): Promise<BookshelfItem> {
+    return this.request(`/bookshelf/${bookId}/progress`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
     });
   }
 

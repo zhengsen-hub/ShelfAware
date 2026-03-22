@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Literal
+import json
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, asc, or_
@@ -127,6 +128,48 @@ class BookshelfService:
                 item.date_finished = now
             if item.date_finished < item.date_started:
                 raise ValueError("Invalid dates: finished before started")
+
+        self.db.commit()
+        self.db.refresh(item)
+        return item
+
+    def update_progress(
+        self,
+        *,
+        user_id: str,
+        book_id: str,
+        progress_percent: int,
+        mood: Optional[str] = None,
+    ) -> Bookshelf:
+        item = self.db.execute(
+            select(Bookshelf).where(
+                Bookshelf.user_id == user_id,
+                Bookshelf.book_id == book_id,
+            )
+        ).scalar_one_or_none()
+
+        if not item:
+            raise ValueError("NOT_FOUND")
+
+        if item.shelf_status not in ("currently_reading", "read"):
+            raise ValueError("Progress can only be updated for currently reading or read books")
+
+        now = _now()
+        payload: Dict[str, Any] = {}
+        if item.synopsis:
+            try:
+                payload = json.loads(item.synopsis)
+                if not isinstance(payload, dict):
+                    payload = {}
+            except Exception:
+                payload = {}
+
+        payload["progress_percent"] = int(progress_percent)
+        payload["mood"] = (mood or "").strip() or None
+        payload["last_check_in_at"] = now.isoformat()
+
+        item.synopsis = json.dumps(payload)
+        item.updated_at = now
 
         self.db.commit()
         self.db.refresh(item)

@@ -6,14 +6,44 @@ import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Star, ArrowLeft, Loader2 } from 'lucide-react';
-import { apiService, Book, Review, ReviewCreate } from '../services/api';
+import { apiService, Book, BookshelfItem, Review, ReviewCreate } from '../services/api';
 import { toast } from 'sonner';
 
-export function BookDetail() {
+interface BookDetailProps {
+  accessToken: string | null;
+}
+
+const readingMoods = [
+  'Curious',
+  'Inspired',
+  'Excited',
+  'Reflective',
+  'Suspenseful',
+  'Peaceful',
+  'Moved',
+  'Confused',
+  'Hopeful',
+];
+
+function parseReadingCheckIn(synopsis?: string | null): { progress: number; mood: string } {
+  if (!synopsis) return { progress: 0, mood: '' };
+  try {
+    const parsed = JSON.parse(synopsis) as { progress_percent?: number; mood?: string };
+    return {
+      progress: typeof parsed.progress_percent === 'number' ? Math.max(0, Math.min(100, parsed.progress_percent)) : 0,
+      mood: typeof parsed.mood === 'string' ? parsed.mood : '',
+    };
+  } catch {
+    return { progress: 0, mood: '' };
+  }
+}
+
+export function BookDetail({ accessToken }: BookDetailProps) {
   const { bookId } = useParams();
   const navigate = useNavigate();
   const [book, setBook] = useState<Book | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [myShelfItem, setMyShelfItem] = useState<BookshelfItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,6 +51,9 @@ export function BookDetail() {
   const [reviewText, setReviewText] = useState('');
   const [reviewMood, setReviewMood] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
+  const [readingMood, setReadingMood] = useState('');
+  const [savingCheckIn, setSavingCheckIn] = useState(false);
 
   useEffect(() => {
     const fetchBookData = async () => {
@@ -32,8 +65,19 @@ export function BookDetail() {
           apiService.getBook(bookId),
           apiService.getReviewsForBook(bookId)
         ]);
+
+        let shelfItem: BookshelfItem | null = null;
+        if (accessToken) {
+          const myShelf = await apiService.getMyBookshelf(accessToken);
+          shelfItem = myShelf.find((item) => item.book_id === bookId) ?? null;
+        }
+
         setBook(bookData);
         setReviews(reviewsData);
+        setMyShelfItem(shelfItem);
+        const checkIn = parseReadingCheckIn(shelfItem?.synopsis);
+        setReadingProgress(checkIn.progress);
+        setReadingMood(checkIn.mood);
         setError(null);
       } catch (err) {
         setError('Failed to load book data');
@@ -44,7 +88,10 @@ export function BookDetail() {
     };
 
     fetchBookData();
-  }, [bookId]);
+  }, [bookId, accessToken]);
+
+  const canReview = myShelfItem?.shelf_status === 'read';
+  const isCurrentlyReading = myShelfItem?.shelf_status === 'currently_reading';
 
   if (loading) {
     return (
@@ -67,7 +114,7 @@ export function BookDetail() {
   }
 
   const handleSubmitReview = async () => {
-    if (!bookId || myRating === 0) {
+    if (!bookId || myRating === 0 || !accessToken) {
       return;
     }
 
@@ -79,7 +126,7 @@ export function BookDetail() {
 
     try {
       setSubmittingReview(true);
-      const createdReview = await apiService.addReview(bookId, payload);
+      const createdReview = await apiService.addReview(accessToken, bookId, payload);
       setReviews((prevReviews) => [createdReview, ...prevReviews]);
       setMyRating(0);
       setReviewText('');
@@ -90,6 +137,25 @@ export function BookDetail() {
       toast.error('Failed to submit review. Please try again.');
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handleSaveCheckIn = async () => {
+    if (!bookId || !accessToken || !isCurrentlyReading) return;
+
+    try {
+      setSavingCheckIn(true);
+      const updated = await apiService.updateBookshelfProgress(accessToken, bookId, {
+        progress_percent: readingProgress,
+        mood: readingMood.trim() || undefined,
+      });
+      setMyShelfItem(updated);
+      toast.success('Reading check-in saved');
+    } catch (err) {
+      console.error('Error saving reading check-in:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save reading progress');
+    } finally {
+      setSavingCheckIn(false);
     }
   };
 
@@ -156,76 +222,136 @@ export function BookDetail() {
             </CardContent>
           </Card>
 
-          {/* Write Review */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Write a Review</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Rating */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Your Rating</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setMyRating(star)}
-                      className="focus:outline-none"
-                      disabled={submittingReview}
-                    >
-                      <Star
-                        className={`size-8 ${
-                          star <= myRating
-                            ? 'text-yellow-500 fill-current'
-                            : 'text-gray-300'
-                        }`}
-                      />
-                    </button>
-                  ))}
+          {/* Reading Check-In (Only for currently reading) */}
+          {isCurrentlyReading && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Reading Check-In</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Progress: {readingProgress}%</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={readingProgress}
+                    onChange={(e) => setReadingProgress(Number(e.target.value))}
+                    className="w-full"
+                    disabled={savingCheckIn}
+                  />
                 </div>
-              </div>
 
-              {/* Mood */}
-              <div>
-                <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Happy, Thought-provoking, Inspiring..."
-                  value={reviewMood}
-                  onChange={(e) => setReviewMood(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={submittingReview}
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">How does this book make you feel so far?</label>
+                  <select
+                    value={readingMood}
+                    onChange={(e) => setReadingMood(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={savingCheckIn}
+                  >
+                    <option value="">Select a mood...</option>
+                    {readingMoods.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Review Text */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Your Review (Optional)</label>
-                <Textarea
-                  placeholder="Share your thoughts about this book..."
-                  value={reviewText}
-                  onChange={(e) => setReviewText(e.target.value)}
-                  rows={4}
-                  disabled={submittingReview}
-                />
-              </div>
+                <Button onClick={handleSaveCheckIn} className="w-full" disabled={savingCheckIn}>
+                  {savingCheckIn ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Check-In'
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
-              <Button
-                onClick={handleSubmitReview}
-                className="w-full"
-                disabled={submittingReview || myRating === 0}
-              >
-                {submittingReview ? (
-                  <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit Review'
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Write Review (Only when completed) */}
+          {canReview ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Write a Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Rating</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setMyRating(star)}
+                        className="focus:outline-none"
+                        disabled={submittingReview}
+                      >
+                        <Star
+                          className={`size-8 ${
+                            star <= myRating
+                              ? 'text-yellow-500 fill-current'
+                              : 'text-gray-300'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Happy, Thought-provoking, Inspiring..."
+                    value={reviewMood}
+                    onChange={(e) => setReviewMood(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={submittingReview}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Review (Optional)</label>
+                  <Textarea
+                    placeholder="Share your thoughts about this book..."
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
+                    rows={4}
+                    disabled={submittingReview}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleSubmitReview}
+                  className="w-full"
+                  disabled={submittingReview || myRating === 0}
+                >
+                  {submittingReview ? (
+                    <>
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Review'
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Write a Review</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  You can submit a review after marking this book as read.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Existing Reviews */}
           <Card>

@@ -17,6 +17,11 @@ class BookshelfStatusUpdate(BaseModel):
     shelf_status: ShelfStatus
 
 
+class BookshelfProgressUpdate(BaseModel):
+    progress_percent: int = Field(..., ge=0, le=100)
+    mood: Optional[str] = None
+
+
 class BookshelfRead(BaseModel):
     user_id: str
     book_id: str

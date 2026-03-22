@@ -12,6 +12,7 @@ from app.services.bookshelf_service import BookshelfService
 from app.schemas.bookshelf import (
     BookshelfCreate,
     BookshelfRead,
+    BookshelfProgressUpdate,
     BookshelfStatusUpdate,
 )
 
@@ -120,6 +121,30 @@ def update_status(
 
     try:
         return service.update_status(user_id=user_id, book_id=book_id, new_status=payload.shelf_status)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "NOT_FOUND":
+            raise HTTPException(status_code=404, detail="Book not found on shelf")
+        raise HTTPException(status_code=400, detail=msg)
+
+
+@router.patch("/{book_id}/progress", response_model=BookshelfRead)
+def update_progress(
+    book_id: str,
+    payload: BookshelfProgressUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_db_user),
+):
+    service = get_bookshelf_service(db)
+    user_id = _extract_user_id(current_user)
+
+    try:
+        return service.update_progress(
+            user_id=user_id,
+            book_id=book_id,
+            progress_percent=payload.progress_percent,
+            mood=payload.mood,
+        )
     except ValueError as e:
         msg = str(e)
         if msg == "NOT_FOUND":
