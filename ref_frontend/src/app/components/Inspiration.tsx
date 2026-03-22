@@ -52,10 +52,13 @@ export function Inspiration({ accessToken }: InspirationProps) {
     }
 
     try {
+      console.log(`Adding book ${bookId} to shelf...`);
       await apiService.addToBookshelf(accessToken, bookId);
       toast.success('Added to your bookshelf');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add to bookshelf');
+      console.error('Add to bookshelf error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add to bookshelf';
+      toast.error(errorMessage);
     }
   };
 
