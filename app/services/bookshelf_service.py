@@ -141,6 +141,8 @@ class BookshelfService:
         progress_percent: int,
         mood: Optional[str] = None,
         moods: Optional[List[str]] = None,
+        book_mood: Optional[str] = None,
+        book_moods: Optional[List[str]] = None,
     ) -> Bookshelf:
         item = self.db.execute(
             select(Bookshelf).where(
@@ -166,20 +168,26 @@ class BookshelfService:
                 payload = {}
 
         normalized_moods: List[str] = []
-        if moods:
+        source_moods = book_moods if book_moods else moods
+        source_mood = book_mood if book_mood is not None else mood
+
+        if source_moods:
             seen = set()
-            for raw in moods:
+            for raw in source_moods:
                 val = (raw or "").strip()
                 if val and val.lower() not in seen:
                     seen.add(val.lower())
                     normalized_moods.append(val)
-        elif mood:
-            split_vals = [part.strip() for part in mood.split(",")]
+        elif source_mood:
+            split_vals = [part.strip() for part in source_mood.split(",")]
             normalized_moods = [m for m in split_vals if m]
 
         payload["progress_percent"] = int(progress_percent)
+        payload["book_moods"] = normalized_moods
+        payload["book_mood"] = ", ".join(normalized_moods) if normalized_moods else None
+        # Keep legacy keys for backward compatibility with existing clients/parsers.
         payload["moods"] = normalized_moods
-        payload["mood"] = ", ".join(normalized_moods) if normalized_moods else None
+        payload["mood"] = payload["book_mood"]
         payload["last_check_in_at"] = now.isoformat()
 
         item.synopsis = json.dumps(payload)

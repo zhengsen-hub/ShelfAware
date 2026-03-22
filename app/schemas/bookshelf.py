@@ -21,6 +21,8 @@ class BookshelfProgressUpdate(BaseModel):
     progress_percent: int = Field(..., ge=0, le=100)
     mood: Optional[str] = None
     moods: Optional[List[str]] = None
+    book_mood: Optional[str] = None
+    book_moods: Optional[List[str]] = None
 
 
 class BookshelfRead(BaseModel):

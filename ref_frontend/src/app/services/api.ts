@@ -28,6 +28,8 @@ export interface Review {
   book_id: string;
   rating: number;
   comment?: string;
+  book_mood?: string;
+  // Backward compatibility with older API payloads.
   mood?: string;
   created_at: string;
 }
@@ -35,6 +37,8 @@ export interface Review {
 export interface ReviewCreate {
   rating: number;
   comment?: string;
+  book_mood?: string;
+  // Backward compatibility with older API payloads.
   mood?: string;
 }
 
@@ -114,6 +118,8 @@ export interface BookshelfItem {
 
 export interface ReadingCheckIn {
   progress_percent: number;
+  book_mood?: string;
+  book_moods?: string[];
   mood?: string;
   moods?: string[];
 }

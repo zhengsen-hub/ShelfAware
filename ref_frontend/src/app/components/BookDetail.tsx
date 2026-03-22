@@ -18,11 +18,21 @@ interface BookDetailProps {
 function parseReadingCheckIn(synopsis?: string | null): { progress: number; moods: string[] } {
   if (!synopsis) return { progress: 0, moods: [] };
   try {
-    const parsed = JSON.parse(synopsis) as { progress_percent?: number; mood?: string; moods?: string[] };
-    const parsedMoods = Array.isArray(parsed.moods)
-      ? parsed.moods.map((m) => String(m).trim()).filter(Boolean)
-      : (typeof parsed.mood === 'string'
-          ? parsed.mood.split(',').map((m) => m.trim()).filter(Boolean)
+    const parsed = JSON.parse(synopsis) as {
+      progress_percent?: number;
+      book_mood?: string;
+      book_moods?: string[];
+      mood?: string;
+      moods?: string[];
+    };
+    const parsedMoods = Array.isArray(parsed.book_moods)
+      ? parsed.book_moods.map((m) => String(m).trim()).filter(Boolean)
+      : Array.isArray(parsed.moods)
+        ? parsed.moods.map((m) => String(m).trim()).filter(Boolean)
+        : (typeof parsed.book_mood === 'string'
+            ? parsed.book_mood.split(',').map((m) => m.trim()).filter(Boolean)
+            : typeof parsed.mood === 'string'
+              ? parsed.mood.split(',').map((m) => m.trim()).filter(Boolean)
           : []);
     return {
       progress: typeof parsed.progress_percent === 'number' ? Math.max(0, Math.min(100, parsed.progress_percent)) : 0,
@@ -131,7 +141,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
     const payload: ReviewCreate = {
       rating: myRating,
       comment: reviewText.trim() || undefined,
-      mood: selectedMoods.length > 0 ? selectedMoods.join(', ') : undefined,
+      book_mood: selectedMoods.length > 0 ? selectedMoods.join(', ') : undefined,
     };
 
     try {
@@ -156,7 +166,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
       setSavingCheckIn(true);
       const updated = await apiService.updateBookshelfProgress(accessToken, bookId, {
         progress_percent: readingProgress,
-        moods: selectedMoods,
+        book_moods: selectedMoods,
       });
       setMyShelfItem(updated);
       toast.success('Reading check-in saved');
@@ -260,7 +270,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">How does this book make you feel so far?</label>
+                  <label className="block text-sm font-medium mb-2">Book mood so far</label>
                   <div className="flex flex-wrap gap-2">
                     {emotionTags.map((m) => (
                       <Badge
@@ -319,7 +329,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
+                  <label className="block text-sm font-medium mb-2">Book mood after finishing</label>
                   <div className="flex flex-wrap gap-2">
                     {emotionTags.map((m) => (
                       <Badge
@@ -409,8 +419,8 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                               {new Date(review.created_at).toLocaleDateString()}
                             </span>
                           </div>
-                          {review.mood && (
-                            <p className="text-sm text-gray-500 mt-1">Feeling: {review.mood}</p>
+                          {(review.book_mood || review.mood) && (
+                            <p className="text-sm text-gray-500 mt-1">Book mood: {review.book_mood || review.mood}</p>
                           )}
                         </div>
                       </div>
