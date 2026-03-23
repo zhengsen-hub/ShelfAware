@@ -112,7 +112,6 @@ app.include_router(
 )
 app.include_router(chatbot.router, prefix="/api/chatbot", tags=["Chatbot"])
 
-logger.info(f"DEBUG: App routes after inclusion: {[r.path for r in app.routes]}") # TEMPORARY DEBUG LINE
 
 @app.post("/admin/trigger-scheduler-sync")
 def trigger_manual_sync():
