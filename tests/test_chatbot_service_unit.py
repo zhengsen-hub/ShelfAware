@@ -96,3 +96,31 @@ def test_process_message_mood_priority_and_books(db):
     fallback = ChatbotService().process_message("hello there")
     assert fallback["mood"] == "peaceful"
     assert fallback["books"] == []
+
+
+def test_process_message_is_read_only_for_mood_lookup():
+    class _ReadOnlyDB:
+        def execute(self, _stmt):
+            class _Result:
+                def scalars(self):
+                    return self
+
+                def first(self):
+                    return None
+
+            return _Result()
+
+        def add(self, _obj):
+            raise AssertionError("ChatbotService must not write during mood lookup")
+
+        def commit(self):
+            raise AssertionError("ChatbotService must not commit during mood lookup")
+
+        def flush(self):
+            raise AssertionError("ChatbotService must not flush during mood lookup")
+
+    svc = ChatbotService(db=_ReadOnlyDB(), recommendation_engine=None)
+    result = svc.process_message("hello", user_id="u1")
+
+    assert result["mood"] == "peaceful"
+    assert result["books"] == []
