@@ -104,7 +104,7 @@ class TestBookRoutes:
         mock_book_service.get_books.return_value = [sample_book_read]
         app.dependency_overrides[get_book_service] = lambda: mock_book_service
 
-        response = client.get("/books")
+        response = client.get("/books/")
 
         assert response.status_code == 200
         data = response.json()
@@ -140,7 +140,7 @@ class TestBookRoutes:
         app.dependency_overrides[get_current_user] = lambda: mock_admin_user
         app.dependency_overrides[required_admin_role] = lambda: mock_admin_user
 
-        response = client.post("/books", json=sample_book_create.model_dump(mode="json"))
+        response = client.post("/books/", json=sample_book_create.model_dump(mode="json"))
 
         assert response.status_code == 201
         data = response.json()
@@ -158,7 +158,7 @@ class TestBookRoutes:
             HTTPException(status_code=403, detail="Admin role required")
         )
 
-        response = client.post("/books", json=sample_book_create.model_dump(mode="json"))
+        response = client.post("/books/", json=sample_book_create.model_dump(mode="json"))
 
         assert response.status_code == 403
         assert "Admin role required" in response.json()["detail"]
@@ -252,7 +252,7 @@ class TestBookRoutes:
 
         invalid_data = {"subtitle": "Test Subtitle"}
 
-        response = client.post("/books", json=invalid_data)
+        response = client.post("/books/", json=invalid_data)
 
         assert response.status_code == 422
         assert "title" in str(response.json())
