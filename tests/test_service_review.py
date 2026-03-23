@@ -133,6 +133,23 @@ class TestAddReview:
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
         assert "User not found" in exc_info.value.detail
 
+
+    def test_add_review_rating_none_raises_422(self, review_service, mock_db):
+        mock_db.scalar.side_effect = ["book-456", "user-123"]
+        # Use model_construct to bypass Pydantic validation and pass None directly
+        review_data = ReviewCreate.model_construct(rating=None, comment="Test")
+
+        with pytest.raises(HTTPException) as exc_info:
+            review_service.add_review(
+                book_id="book-456",
+                user_id="user-123",
+                review_data=review_data
+            )
+
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "Rating must be between 1 and 5" in exc_info.value.detail
+    
+
     def test_add_review_duplicate_constraint_violation(self, review_service, mock_db):
         """Test adding duplicate review for same user-book combination."""
         # ARRANGE
@@ -236,11 +253,56 @@ class TestUpdateReview:
         # ASSERT
         assert result is not None
 
+
+    def test_update_review_mood_updates_existing_mood(self, review_service, mock_db, sample_review):
+        from app.models.mood import Mood
+        from unittest.mock import MagicMock
+
+        existing_mood = MagicMock(spec=Mood)
+        # scalar calls: user exists, then existing mood found
+        mock_db.scalar.side_effect = ["user-123", existing_mood]
+        mock_db.get.return_value = sample_review
+        mock_db.commit = lambda: None
+        mock_db.refresh = lambda x: None
+
+        update_data = ReviewUpdate(mood="excited")
+        review_service.update_review(
+            review_id="review-789",
+            acting_user_id="user-123",
+            review_data=update_data
+        )
+
+        assert existing_mood.mood == "excited"
+        mock_db.add.assert_not_called()
+
+
+    def test_update_review_mood_creates_new_mood_when_none_exists(self, review_service, mock_db, sample_review):
+        from app.models.mood import Mood
+
+        mock_db.scalar.side_effect = ["user-123", None]
+        mock_db.get.return_value = sample_review
+        mock_db.commit = lambda: None
+        mock_db.refresh = lambda x: None
+
+        update_data = ReviewUpdate(mood="sad")
+        review_service.update_review(
+            review_id="review-789",
+            acting_user_id="user-123",
+            review_data=update_data
+        )
+
+        added_objects = [call.args[0] for call in mock_db.add.call_args_list]
+        mood_objects = [obj for obj in added_objects if isinstance(obj, Mood)]
+        assert len(mood_objects) == 1
+        assert mood_objects[0].mood == "sad"
+
+
     def test_review_update_schema_invalid_rating(self):
         """Test ReviewUpdate schema rejects invalid rating."""
         # ARRANGE & ACT & ASSERT
         with pytest.raises(ValidationError):
             ReviewUpdate(rating=6)
+
 
     def test_update_review_not_authorized(self, review_service, mock_db, sample_review):
         """Test updating review by non-owner user."""
@@ -261,6 +323,7 @@ class TestUpdateReview:
         assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
         assert "Not authorized" in exc_info.value.detail
 
+    
     def test_update_review_not_found(self, review_service, mock_db):
         """Test updating non-existent review."""
         # ARRANGE
@@ -278,6 +341,24 @@ class TestUpdateReview:
         
         # ASSERT
         assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+    def test_update_review_invalid_rating_raises_422(self, review_service, mock_db, sample_review):
+        # ARRANGE
+        mock_db.scalar.side_effect = ["user-123"]
+        mock_db.get.return_value = sample_review
+        update_data = ReviewUpdate.model_construct(rating=10)  # bypass Pydantic, hit service validation
+
+        # ACT & ASSERT
+        with pytest.raises(HTTPException) as exc_info:
+            review_service.update_review(
+                review_id="review-789",
+                acting_user_id="user-123",
+                review_data=update_data
+            )
+
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "Rating must be between 1 and 5" in exc_info.value.detail
 
 
 class TestDeleteReview:

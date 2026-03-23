@@ -9,7 +9,6 @@ from app.services.review_service import ReviewService
 from app.dependencies.auth import get_current_user
 
 
-
 @pytest.fixture(autouse=True)
 def mock_env_vars():
     """Mock environment variables."""
@@ -334,3 +333,156 @@ class TestDeleteReviewEndpoint:
         
         # Assert
         assert response.status_code == 404
+
+
+# ============================================================================
+# TESTS: GET /reviews/{review_id}
+# ============================================================================
+
+class TestGetReviewEndpoint:
+    """Tests for GET /reviews/{review_id} — covers lines 111-112"""
+
+    def test_get_review_success(self, client, mock_review_service):
+        """Lines 111-112: GET /{review_id} returns a single review."""
+        # Arrange
+        from unittest.mock import MagicMock
+        mock_instance = mock_review_service.return_value
+
+        mock_review = MagicMock()
+        mock_review.review_id = "review-789"
+        mock_review.book_id = "book-456"
+        mock_review.user_id = "user-123"
+        mock_review.rating = 5
+        mock_review.body = "Great book!"
+        mock_review.title = "Great!"
+        mock_review.comment = "Great book!"
+        mock_review.created_at = datetime.now()
+        mock_review.updated_at = datetime.now()
+
+        mock_instance._get_review_or_404.return_value = mock_review
+
+        # Act
+        response = client.get("/reviews/review-789")
+
+        # Assert
+        assert response.status_code == 200
+        mock_instance._get_review_or_404.assert_called_once_with("review-789")
+
+
+    def test_get_review_not_found(self, client, mock_review_service):
+        """Lines 111-112: GET /{review_id} raises 404 when not found."""
+        # Arrange
+        from fastapi import HTTPException
+        mock_instance = mock_review_service.return_value
+        mock_instance._get_review_or_404.side_effect = HTTPException(
+            status_code=404,
+            detail="Review not found"
+        )
+
+        # Act
+        response = client.get("/reviews/nonexistent-review")
+
+        # Assert
+        assert response.status_code == 404
+        assert "Review not found" in response.json()["detail"]
+
+
+
+# ============================================================================
+# TESTS: resolve_user_id fallback 
+# ============================================================================
+
+class TestResolveUserIdFallback:
+
+    @pytest.fixture
+    def client_no_user_id(self, mock_review_service):
+        """Client where token has NO user_id — forces cognito fallback path."""
+        async def mock_get_current_user():
+            return {}  # empty — no user_id, no sub
+
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        with TestClient(app) as c:
+            yield c
+        app.dependency_overrides.clear()
+
+    @pytest.fixture
+    def client_with_sub_only(self, mock_review_service):
+        """Client where token has cognito_sub but no user_id."""
+        async def mock_get_current_user():
+            return {"cognito_sub": "cognito-abc-123"}  # no user_id
+
+        app.dependency_overrides[get_current_user] = mock_get_current_user
+        with TestClient(app) as c:
+            yield c
+        app.dependency_overrides.clear()
+
+    def test_resolve_user_id_no_user_id_no_sub_raises_401(self, client_no_user_id):
+        # Act
+        response = client_no_user_id.post(
+            "/reviews/books/book-456",
+            json={"rating": 5, "comment": "test"}
+        )
+
+        # Assert
+        assert response.status_code == 401
+        assert "missing user_id/sub" in response.json()["detail"]
+
+    def test_resolve_user_id_sub_user_not_in_db_raises_401(self, client_with_sub_only, mock_review_service):
+        # Arrange — override get_db to return a mock db where user lookup returns None
+        from app.dependencies.db import get_db
+        mock_db = Mock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        # Act
+        response = client_with_sub_only.post(
+            "/reviews/books/book-456",
+            json={"rating": 5, "comment": "test"}
+        )
+
+        app.dependency_overrides.pop(get_db, None)
+
+        # Assert
+        assert response.status_code == 401
+        assert "not found in database" in response.json()["detail"]
+
+
+    def test_resolve_user_id_via_cognito_sub_success(self, client_with_sub_only, mock_review_service):
+        # Arrange
+        from app.dependencies.db import get_db
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.user_id = "user-123"
+
+        mock_db = Mock()
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+
+        mock_review = MagicMock()
+        mock_review.review_id = "review-789"
+        mock_review.book_id = "book-456"
+        mock_review.user_id = "user-123"
+        mock_review.rating = 5
+        mock_review.body = "Great!"
+        mock_review.title = "Great!"
+        mock_review.comment = "Great!"
+        mock_review.created_at = datetime.now()
+        mock_review.updated_at = datetime.now()
+
+        mock_instance = mock_review_service.return_value
+        mock_instance.add_review.return_value = mock_review
+
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        # Act
+        response = client_with_sub_only.post(
+            "/reviews/books/book-456",
+            json={"rating": 5, "comment": "test"}
+        )
+
+        app.dependency_overrides.pop(get_db, None)
+
+        # Assert — got past auth, service was called
+        assert response.status_code != 401
+        mock_instance.add_review.assert_called_once()
