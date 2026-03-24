@@ -20,7 +20,7 @@
       "environment": [
         {
           "name": "COGNITO_REGION",
-          "value": "ap-southeast-2"
+          "value": "ap-southeast-1"
         }
       ],
       "secrets": [
