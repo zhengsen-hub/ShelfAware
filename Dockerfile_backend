@@ -15,7 +15,6 @@ COPY . /shelfaware_app
 
 # 3. Give the container permission to read/write to the DB file
 # SQLite needs to create temporary "journal" files in the same folder.
-RUN chmod 777 /app
 RUN chmod 666 /shelfaware_app/app.db
 
 # Expose port 8000 (FastAPI default)

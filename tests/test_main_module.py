@@ -1,11 +1,14 @@
 import asyncio
 import importlib
+import json
+import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException
 from fastapi import Response
+from starlette.requests import Request
 
 import app.main as main_module
 
@@ -139,3 +142,31 @@ def test_main_module_creates_static_dir_when_missing(monkeypatch):
     importlib.reload(main_module)
 
     makedirs_mock.assert_called_once_with("app/static")
+
+
+def test_main_module_mounts_static_app_when_index_exists(monkeypatch):
+    static_dir = "app/static"
+    index_path = os.path.join(static_dir, "index.html")
+
+    def fake_exists(path):
+        return path in {static_dir, index_path}
+
+    monkeypatch.setattr(main_module.os.path, "exists", fake_exists)
+
+    with patch.object(main_module.FastAPI, "mount") as mount_mock:
+        importlib.reload(main_module)
+
+    mount_mock.assert_called_once()
+    args, kwargs = mount_mock.call_args
+    assert args[0] == "/"
+    assert kwargs["name"] == "static-app"
+
+
+def test_global_exception_handler_returns_json_response():
+    request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+
+    response = asyncio.run(main_module.global_exception_handler(request, Exception("boom")))
+
+    assert response.status_code == 500
+    data = json.loads(response.body.decode("utf-8"))
+    assert "detail" in data
